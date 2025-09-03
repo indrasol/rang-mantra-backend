@@ -34,7 +34,14 @@ class StorageService:
             # Check if bucket exists
             def check_bucket():
                 buckets = self.client.storage.list_buckets()
-                return any(bucket.name == bucket_name for bucket in buckets)
+                for bucket in buckets:
+                    if bucket.name == bucket_name:
+                        # If bucket exists but is not public, make it public to allow public URLs
+                        if not getattr(bucket, "public", False):
+                            # update_bucket expects options dict
+                            self.client.storage.update_bucket(bucket_name, public=True)
+                        return True
+                return False
             
             bucket_exists = await safe_supabase_operation(
                 check_bucket,
@@ -44,8 +51,10 @@ class StorageService:
             if not bucket_exists:
                 # Create the bucket if it doesn't exist
                 def create_bucket():
+                    # supabase-py v2: use keyword arguments
                     return self.client.storage.create_bucket(
-                        bucket_name
+                        bucket_name,
+                        public=True
                     )
                 
                 await safe_supabase_operation(
@@ -102,7 +111,7 @@ class StorageService:
         await self.ensure_buckets_exist()
         
         # Keep same filename structure as original but in colorized bucket
-        filename = original_filename
+        filename = original_filename.replace(".png", "_colorized.png")
         
         # Upload the file
         def upload_file():

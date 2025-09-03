@@ -1,8 +1,13 @@
+# Core libs
+import os
+import base64
+from io import BytesIO
+
+# Third-party
 import google.generativeai as genai
 from PIL import Image
-from io import BytesIO
-import base64
-import os
+
+# Project settings
 from app.config.settings import GOOGLE_API_KEY
 
 # Initialize Google Generative AI client with API key
@@ -46,31 +51,66 @@ class ImageColorizer:
                 temperature=0.2,  # Lower temperature for more accurate colorization
                 candidate_count=1,
             )
-            
-            # Create the safety settings with proper import from the package
+
             safety_settings = {
                 "HARM_CATEGORY_HARASSMENT": "BLOCK_ONLY_HIGH",
                 "HARM_CATEGORY_HATE_SPEECH": "BLOCK_ONLY_HIGH",
                 "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_ONLY_HIGH",
                 "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_ONLY_HIGH",
             }
-            
-            # Generate the content
+
             response = self.model.generate_content(
                 contents=[self.prompt, img],
                 generation_config=generation_config,
                 safety_settings=safety_settings,
             )
-            
+
             # Extract the image data from the response
             for part in response.candidates[0].content.parts:
-                if hasattr(part, 'inline_data') and part.inline_data:
-                    # Per the documentation, inline_data.data contains the base64 encoded image
-                    return base64.b64decode(part.inline_data.data)
-            
-            # If no image data found in the response
-            raise Exception("No colorized image was returned by the model")
+                inline = getattr(part, "inline_data", None)
+                if not inline:
+                    continue
+                if inline.mime_type and not inline.mime_type.startswith("image/"):
+                    continue
+                if not inline.data:
+                    continue
+
+                data_blob = inline.data  # could be str (base64) or bytes (raw image or base64 bytes)
+
+                # If it's already raw image bytes (PNG or JPEG signature), use it directly
+                if isinstance(data_blob, (bytes, bytearray)):
+                    if data_blob[:8] == b"\x89PNG\r\n\x1a\n" or data_blob[:2] == b"\xff\xd8":
+                        raw_bytes = bytes(data_blob)
+                    else:
+                        # treat as base64 bytes and decode
+                        try:
+                            raw_bytes = base64.b64decode(data_blob)
+                        except Exception as be:
+                            continue
+                else:
+                    # data_blob is str
+                    data_str = data_blob
+                    if data_str.strip().startswith("data:") and "," in data_str:
+                        data_str = data_str.split(",", 1)[1]
+                    try:
+                        raw_bytes = base64.b64decode(data_str)
+                    except Exception as se:
+                        continue
+
+                # now have raw_bytes
+
+                try:
+                    pil_img = Image.open(BytesIO(raw_bytes))
+                    buf = BytesIO()
+                    pil_img.save(buf, format="PNG")
+                    buf.seek(0)
+                    png_bytes = buf.getvalue()
+                    return png_bytes
+                except Exception as conv_err:
+                    return raw_bytes
+
+            raise Exception("Not a valid image data")
             
         except Exception as e:
             print(f"Error colorizing image: {str(e)}")
-            raise
+            raise Exception("Something went wrong please try again later")
