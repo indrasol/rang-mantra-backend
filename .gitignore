@@ -8,7 +8,23 @@ pnpm-debug.log*
 lerna-debug.log*
 .env
 .env.*
+__pycache__/
+__cache__/
+__.cpython*
+# Python bytecode files
+*.py[cod]
+# Native Python extensions
+*.so
+*.dylib
 
+# Python tooling and test caches
+.mypy_cache/
+.pytest_cache/
+.coverage
+.tox/
+.nox/
+.cache/
+htmlcov/
 node_modules
 dist
 dist-ssr
