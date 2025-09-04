@@ -21,24 +21,24 @@ from . import config
 # session_manager = SessionManager()
 logger = setup_logging()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
 
-    log_info("Starting up RangMantra ")
-    log_info(f"httpx version: {httpx.__version__}")
+#     log_info("Starting up RangMantra ")
+#     log_info(f"httpx version: {httpx.__version__}")
     
-    try:
+#     try:
         
-        yield
-    finally:
-        log_info("Shutting down")
+#         yield
+#     finally:
+#         log_info("Shutting down")
 
 
 app = FastAPI(
     title="RangMantra - Add Color to your Photo",
     description="Add Color to your Photo.",
     version="1.0.0",
-    lifespan=lifespan,
+    # lifespan=lifespan,
     debug=True,
     redirect_slashes=False
 )
