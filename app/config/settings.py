@@ -38,9 +38,6 @@ print(f"Running in {ENV} environment")
 
 
 # Main
-title=os.getenv("title_TM")
-description=os.getenv("description_TM")
-version=os.getenv("version_TM")
 
 # Supabase configuration
 SUPABASE_PROJECT_URL = os.getenv("SUPABASE_URL_RM")
