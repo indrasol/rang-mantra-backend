@@ -24,14 +24,10 @@ class ImageColorizer:
         """
         self.model = genai.GenerativeModel(model_name)
         self.prompt = (
-            "You are an expert at colorizing black and white photographs. "
-            "Please colorize this black and white photo with realistic, historically accurate colors. "
-            "Focus on creating natural skin tones, accurate clothing colors for the time period, and "
-            "realistic environmental colors. Make it look like it was originally shot in color. "
-            "Keep the composition exactly the same - only add color."
+            "Colorize and restore the original photograph while keeping its authenticity. Tasks:  - Apply subtle, historically accurate colorization with natural skin tones, hair colors, and clothing hues.  - Remove blurriness and restore fine details in faces, clothing, and background.  - Repair discoloration, fading, stains, and spots while preserving the natural texture and grain.  - Avoid oversaturation or artificial enhancements.  - Should look like AI generated  Goal: Deliver a clean, sharp, and realistic version of the original photograph that feels historically authentic and emotionally true to its time."
         )
     
-    async def colorize_image(self, image_bytes):
+    async def colorize_image(self, image_bytes, prompt_override: str | None = None):
         """
         Process a black and white image and return the colorized version
         
@@ -59,8 +55,9 @@ class ImageColorizer:
                 "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_ONLY_HIGH",
             }
 
+            prompt_to_use = prompt_override or self.prompt
             response = self.model.generate_content(
-                contents=[self.prompt, img],
+                contents=[prompt_to_use, img],
                 generation_config=generation_config,
                 safety_settings=safety_settings,
             )
