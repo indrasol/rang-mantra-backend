@@ -9,7 +9,9 @@ import json
 from app.core.google_ai_client import ImageColorizer
 from app.services.storage_service import StorageService
 from app.models.colorize import ColorizeRequest, ColorizeResponse, ColorizeStatus
+from app.models.colorize import ColorizeEphemeralResponse
 from app.db.supabase_db import get_supabase_client, safe_supabase_operation
+from user_agents import parse as parse_ua
 
 router = APIRouter()
 colorizer = ImageColorizer()
@@ -177,3 +179,79 @@ async def process_colorization(request_id: str, user_id: str, image_bytes: bytes
             update_failed_status,
             error_message="Failed to update colorize request status"
         )
+
+def detect_platform(ua: str) -> str:
+    if not ua:
+        return "unknown"
+    ua_parsed = parse_ua(ua)
+    if ua_parsed.is_mobile:
+        if ua_parsed.os.family.lower().startswith("android"):
+            return "android"
+        return "ios"
+    if ua_parsed.os.family.lower().startswith("mac"):
+        return "macos"
+    if ua_parsed.os.family.lower().startswith("windows"):
+        return "windows"
+    return "desktop"
+
+@router.post("/ephemeral", response_model=ColorizeEphemeralResponse)
+async def colorize_ephemeral(
+    file: UploadFile = File(...),
+    platform: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    user_email: Optional[str] = Form(None),
+    authorization: Optional[str] = Header(None),
+    user_agent: Optional[str] = Header(None, alias="user-agent"),
+):
+    """Colorize an image completely in-memory and return base64 strings.
+
+    This endpoint is used for the privacy-first flow; no data is persisted.
+    """
+    # Validate image
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    try:
+        image_bytes = await file.read()
+        # Run through Google AI
+        colorized_bytes = await colorizer.colorize_image(image_bytes)
+
+        import base64
+        original_b64 = base64.b64encode(image_bytes).decode()
+        colorized_b64 = base64.b64encode(colorized_bytes).decode()
+
+        # Determine user_id and email precedence: form value > jwt claim
+        jwt_sub = None
+        jwt_email = None
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split(" ", 1)[1]
+            try:
+                import jwt as pyjwt
+                decoded = pyjwt.decode(token, options={"verify_signature": False})
+                jwt_sub = decoded.get("sub")
+                jwt_email = decoded.get("email")
+            except Exception:
+                pass
+        uid = user_id or jwt_sub
+        uemail = user_email or jwt_email
+
+        platform_detected = platform or detect_platform(user_agent)
+
+        async def log_event():
+            try:
+                await safe_supabase_operation(lambda: get_supabase_client().table("colorize_events").insert({
+                    "user_id": uid,
+                    "platform": platform_detected,
+                    "user_email": uemail,
+                }).execute())
+            except Exception:
+                pass
+        asyncio.create_task(log_event())
+
+        return {
+            "original_base64": original_b64,
+            "colorized_base64": colorized_b64,
+            "expires_in": 900,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to colorize image: {str(e)}")
