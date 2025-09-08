@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 .env
 .env.*
+__pycache__
 __pycache__/
 __cache__/
 __.cpython*

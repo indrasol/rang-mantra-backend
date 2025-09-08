@@ -39,4 +39,3 @@ class ColorizeEphemeralResponse(BaseModel):
     original_base64: str = Field(..., description="Base64 encoded original B&W image")
     colorized_base64: str = Field(..., description="Base64 encoded colourised image returned by Google AI")
     expires_in: int = Field(900, description="Time in seconds the backend suggests the client keep the data in memory")
-
