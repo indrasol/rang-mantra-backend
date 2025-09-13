@@ -226,11 +226,17 @@ async def colorize_ephemeral(
         if authorization and authorization.startswith("Bearer "):
             token = authorization.split(" ", 1)[1]
             try:
-                import jwt as pyjwt
-                decoded = pyjwt.decode(token, options={"verify_signature": False})
-                jwt_sub = decoded.get("sub")
-                jwt_email = decoded.get("email")
+                # Use Supabase client to verify the JWT token properly
+                from app.db.supabase_db import get_supabase_client
+                supabase = get_supabase_client()
+                
+                # Verify token with Supabase - this will validate the signature
+                user_response = supabase.auth.get_user(token)
+                if user_response.user:
+                    jwt_sub = user_response.user.id
+                    jwt_email = user_response.user.email
             except Exception:
+                # If token verification fails, we'll just use form values
                 pass
         uid = user_id or jwt_sub
         uemail = user_email or jwt_email

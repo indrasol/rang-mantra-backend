@@ -40,16 +40,17 @@ origins = [
     "http://localhost:5173",  # Vite default port
     "http://127.0.0.1:5173",
     "https://rangmantra.netlify.app",
+    "https://yaadonkerang.indrasol.com",
     "https://development--rangmantra.netlify.app"
 ]
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to your frontend domain in production
+    allow_origins=origins,  # Use specific allowed origins for security
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specify allowed methods
+    allow_headers=["*"],  # Keep headers flexible for auth tokens
 )
 
 # Custom exception handler for HTTP exceptions
