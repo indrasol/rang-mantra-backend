@@ -93,8 +93,8 @@ async def generic_exception_handler(request: Request, exc: Exception):
     )
 
 # ----- Register routers -----
-# v1 grouped under /v1/routes
-app.include_router(api_router, prefix="/v1")
+# v1 grouped under /api/v1/routes
+app.include_router(api_router, prefix="/api/v1")
 
 # Root endpoint
 @app.get("/")
