@@ -27,6 +27,40 @@ class ImageColorizer:
             "Colorize and restore the original photograph while keeping its authenticity. Tasks:  - Apply subtle, historically accurate colorization with natural skin tones, hair colors, and clothing hues.  - Remove blurriness and restore fine details in faces, clothing, and background.  - Repair discoloration, fading, stains, and spots while preserving the natural texture and grain.  - Avoid oversaturation or artificial enhancements.  - Should look like AI generated  Goal: Deliver a clean, sharp, and realistic version of the original photograph that feels historically authentic and emotionally true to its time."
         )
     
+    def _is_image_colored(self, img):
+        """
+        Detect if an image is already colored by analyzing color variance
+        
+        Args:
+            img (PIL.Image): PIL Image object
+            
+        Returns:
+            bool: True if image appears to be colored, False if grayscale/B&W
+        """
+        # Convert to RGB if not already
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Sample pixels from the image (every 10th pixel for performance)
+        pixels = list(img.getdata())[::10]
+        
+        # Check color variance - if R, G, B values are significantly different, it's colored
+        color_variance_count = 0
+        total_pixels = len(pixels)
+        
+        for r, g, b in pixels:
+            # Calculate variance between RGB channels
+            max_val = max(r, g, b)
+            min_val = min(r, g, b)
+            
+            # If there's significant difference between channels, it's likely colored
+            if max_val - min_val > 15:  # Threshold for color detection
+                color_variance_count += 1
+        
+        # If more than 10% of pixels show color variance, consider it colored
+        color_ratio = color_variance_count / total_pixels
+        return color_ratio > 0.1
+
     async def colorize_image(self, image_bytes, prompt_override: str | None = None):
         """
         Process a black and white image and return the colorized version
@@ -40,6 +74,19 @@ class ImageColorizer:
         try:
             # Create PIL image from bytes
             img = Image.open(BytesIO(image_bytes))
+            
+            # Check if image is already colored
+            if self._is_image_colored(img):
+                raise Exception("This image appears to already be colored. Please upload a black and white photo for best colorization results.")
+            
+            # Validate and preprocess image
+            if img.mode not in ['RGB', 'RGBA', 'L', 'P']:
+                img = img.convert('RGB')
+            
+            # Resize if image is too large (max 2048x2048 for better API performance)
+            max_size = 2048
+            if img.width > max_size or img.height > max_size:
+                img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
             
             # Create the generation config for image generation
             # Based on best practices from Nano Banana documentation
@@ -106,8 +153,20 @@ class ImageColorizer:
                 except Exception as conv_err:
                     return raw_bytes
 
-            raise Exception("Not a valid image data")
+            raise Exception("The AI model couldn't process this image. Please try with a different black and white photo.")
             
         except Exception as e:
-            print(f"Error colorizing image: {str(e)}")
-            raise Exception("Something went wrong please try again later")
+            error_msg = str(e)
+            print(f"Error colorizing image: {error_msg}")
+            
+            # Provide specific error messages for better user experience
+            if "already be colored" in error_msg:
+                raise Exception(error_msg)  # Pass through the colored image message
+            elif "cannot identify image file" in error_msg.lower():
+                raise Exception("Invalid image format. Please upload a valid image file (JPEG, PNG, etc.)")
+            elif "image file is truncated" in error_msg.lower():
+                raise Exception("The image file appears to be corrupted. Please try uploading a different image.")
+            elif "AI model couldn't process" in error_msg:
+                raise Exception(error_msg)  # Pass through AI processing message
+            else:
+                raise Exception("Failed to process the image. Please try again with a black and white photo.")
